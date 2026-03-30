@@ -6,6 +6,7 @@ const Application = require('../models/Application');
 
 const auth = require('../middleware/authMiddleware');
 const role = require('../middleware/role');
+const upload = require('../middleware/upload'); // 🔥 IMPORTANT
 
 
 // =========================
@@ -70,40 +71,50 @@ router.get('/', async (req, res) => {
 
 
 // =========================
-// APPLY TO JOB (Jobseeker only)
+// APPLY TO JOB (WITH RESUME)
 // =========================
-router.post('/apply/:jobId', auth, role('jobseeker'), async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.jobId);
+router.post(
+  '/apply/:jobId',
+  auth,
+  role('jobseeker'),
+  upload.single('resume'), // 🔥 FILE UPLOAD
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.jobId);
 
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+
+      // Prevent duplicate
+      const existing = await Application.findOne({
+        user: req.user.id,
+        job: req.params.jobId
+      });
+
+      if (existing) {
+        return res.status(400).json({ message: 'Already applied' });
+      }
+
+      const application = new Application({
+        user: req.user.id,
+        job: req.params.jobId,
+        resume: req.file ? req.file.path : null // 🔥 SAVE FILE PATH
+      });
+
+      await application.save();
+
+      return res.json({
+        message: 'Applied with resume',
+        application
+      });
+
+    } catch (err) {
+      console.error("APPLY ERROR:", err);
+      return res.status(500).json({ error: err.message });
     }
-
-    // Prevent duplicate application
-    const existing = await Application.findOne({
-      user: req.user.id,
-      job: req.params.jobId
-    });
-
-    if (existing) {
-      return res.status(400).json({ message: 'Already applied' });
-    }
-
-    const application = new Application({
-      user: req.user.id,
-      job: req.params.jobId
-    });
-
-    await application.save();
-
-    return res.json({ message: 'Applied successfully', application });
-
-  } catch (err) {
-    console.error("APPLY ERROR:", err);
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 
 // =========================

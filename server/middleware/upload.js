@@ -3,16 +3,16 @@ const path = require('path');
 
 // Storage config
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/'); // folder
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     const uniqueName = Date.now() + path.extname(file.originalname);
     cb(null, uniqueName);
   }
 });
 
-// File filter (only PDF)
+// File filter (ONLY PDF)
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {
     cb(null, true);
