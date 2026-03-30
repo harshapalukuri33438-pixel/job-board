@@ -15,6 +15,10 @@ router.post('/create', auth, role('recruiter'), async (req, res) => {
   try {
     const { title, company, location, description } = req.body;
 
+    if (!title || !company || !location || !description) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
     const job = new Job({
       title,
       company,
@@ -25,9 +29,11 @@ router.post('/create', auth, role('recruiter'), async (req, res) => {
 
     await job.save();
 
-    res.json({ message: 'Job created successfully', job });
+    return res.json({ message: 'Job created successfully', job });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -41,12 +47,10 @@ router.get('/', async (req, res) => {
 
     const query = {};
 
-    // Search by title
     if (search) {
       query.title = { $regex: search, $options: 'i' };
     }
 
-    // Filter by location
     if (location) {
       query.location = { $regex: location, $options: 'i' };
     }
@@ -56,9 +60,11 @@ router.get('/', async (req, res) => {
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-    res.json(jobs);
+    return res.json(jobs);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -66,28 +72,33 @@ router.get('/', async (req, res) => {
 // =========================
 // APPLY TO JOB (Jobseeker only)
 // =========================
-router.post('/apply/:jobId', auth, role('jobseeker'), async (req, res) => {
-  try {
-    // Prevent duplicate application
-    const existing = await Application.findOne({
-      user: req.user.id,
-      job: req.params.jobId
-    });
+const upload = require('../middleware/upload');
 
-    if (existing) {
-      return res.status(400).json({ message: 'Already applied' });
+router.post('/apply/:jobId', auth, role('jobseeker'), upload.single('resume'), async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
     }
 
     const application = new Application({
       user: req.user.id,
-      job: req.params.jobId
+      job: req.params.jobId,
+      resume: req.file ? req.file.path : null
     });
 
     await application.save();
 
-    res.json({ message: 'Applied successfully' });
+    return res.json({ message: 'Applied successfully', application });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err.code === 11000) {
+      return res.status(400).json({ message: 'Already applied' });
+    }
+
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -106,24 +117,74 @@ router.get('/applied', auth, async (req, res) => {
         }
       });
 
-    res.json(applications);
+    return res.json(applications);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
 
 // =========================
-// GET APPLICANTS (Recruiter)
+// GET APPLICANTS (Recruiter only - OWN JOBS)
 // =========================
 router.get('/applicants/:jobId', auth, role('recruiter'), async (req, res) => {
   try {
+    const job = await Job.findById(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    // 🔒 Ensure recruiter owns this job
+    if (job.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
     const applications = await Application.find({ job: req.params.jobId })
       .populate('user', 'name email');
 
-    res.json(applications);
+    return res.json(applications);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// =========================
+// UPDATE APPLICATION STATUS (Recruiter)
+// =========================
+router.put('/status/:appId', auth, role('recruiter'), async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const application = await Application.findById(req.params.appId)
+      .populate('job');
+
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // 🔒 Ensure recruiter owns the job
+    if (application.job.postedBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    application.status = status;
+    await application.save();
+
+    return res.json({ message: 'Status updated', application });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 

@@ -30,3 +30,4 @@ app.use('/api/test', testRoutes);
 const jobRoutes = require('./routes/jobRoutes');
 
 app.use('/api/job', jobRoutes);
+app.use('/uploads', express.static('uploads'));
