@@ -6,7 +6,7 @@ const Application = require('../models/Application');
 
 const auth = require('../middleware/authMiddleware');
 const role = require('../middleware/role');
-const upload = require('../middleware/upload'); // 🔥 IMPORTANT
+const upload = require('../middleware/upload');
 
 
 // =========================
@@ -77,7 +77,7 @@ router.post(
   '/apply/:jobId',
   auth,
   role('jobseeker'),
-  upload.single('resume'), // 🔥 FILE UPLOAD
+  upload.single('resume'),
   async (req, res) => {
     try {
       const job = await Job.findById(req.params.jobId);
@@ -99,14 +99,22 @@ router.post(
       const application = new Application({
         user: req.user.id,
         job: req.params.jobId,
-        resume: req.file ? req.file.path : null // 🔥 SAVE FILE PATH
+        resume: req.file ? req.file.path : null
       });
 
       await application.save();
 
+      // 🔥 FIX: Convert resume path → full URL
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+      const appObj = application.toObject();
+      appObj.resume = appObj.resume
+        ? `${baseUrl}/${appObj.resume}`
+        : null;
+
       return res.json({
         message: 'Applied with resume',
-        application
+        application: appObj
       });
 
     } catch (err) {
@@ -131,7 +139,18 @@ router.get('/applied', auth, async (req, res) => {
         }
       });
 
-    return res.json(applications);
+    // 🔥 FIX: Add full resume URL
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    const updated = applications.map(app => {
+      const obj = app.toObject();
+      obj.resume = obj.resume
+        ? `${baseUrl}/${obj.resume}`
+        : null;
+      return obj;
+    });
+
+    return res.json(updated);
 
   } catch (err) {
     console.error("GET APPLIED ERROR:", err);
