@@ -2,8 +2,12 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
-// Register
+
+// =========================
+// REGISTER
+// =========================
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -19,37 +23,50 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    res.json({ message: 'User registered successfully' });
+    return res.json({ message: 'User registered successfully' });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
-const jwt = require('jsonwebtoken');
 
-// Login
-console.log("SECRET:", process.env.JWT_SECRET);
-console.log("LOGIN HIT");
-console.log("LOGIN SECRET:", process.env.JWT_SECRET);
+// =========================
+// LOGIN
+// =========================
 router.post('/login', async (req, res) => {
   try {
+    console.log("🔥 LOGIN HIT");
+    console.log("🔥 LOGIN SECRET:", process.env.JWT_SECRET);
+
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'User not found' });
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
     const token = jwt.sign(
-      { id: user._id , role: user.role },
-       process.env.JWT_SECRET,
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    res.json({ token });
+    // 🔥 IMPORTANT DEBUG LOGS
+    console.log("🔥 GENERATED TOKEN:", token);
+
+    return res.json({ token });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 });
+
 module.exports = router;

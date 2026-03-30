@@ -5,23 +5,38 @@ const auth = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      return res.status(401).json({ message: 'No token' });
+      console.log("❌ No Authorization header");
+      return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
-    // 🔥 FIX: remove Bearer
-    const token = authHeader.split(' ')[1];
+    // Expecting format: Bearer <token>
+    const parts = authHeader.split(' ');
+
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      console.log("❌ Invalid Authorization format:", authHeader);
+      return res.status(401).json({ message: 'Invalid token format' });
+    }
+
+    const token = parts[1];
 
     if (!token) {
+      console.log("❌ Token missing after Bearer");
       return res.status(401).json({ message: 'Token missing' });
     }
 
+    // 🔥 DEBUG LOGS
+    console.log("🔍 TOKEN RECEIVED:", token);
+    console.log("🔍 SECRET USED:", process.env.JWT_SECRET);
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    console.log("✅ TOKEN VERIFIED:", decoded);
 
     req.user = decoded;
     next();
 
   } catch (err) {
-    console.log("AUTH ERROR:", err.message); // 🔥 SEE REAL ERROR
+    console.log("❌ AUTH ERROR:", err.message);
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
