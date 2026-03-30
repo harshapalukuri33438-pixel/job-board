@@ -81,7 +81,7 @@ router.post(
   async (req, res) => {
     try {
 
-      console.log("FILE:", req.file); // 🔥 DEBUG (DO NOT REMOVE)
+      console.log("FILE:", req.file);
 
       if (!req.file) {
         return res.status(400).json({
@@ -113,15 +113,15 @@ router.post(
 
       await application.save();
 
-      // Convert to full URL
       const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-      const appObj = application.toObject();
-      appObj.resume = `${baseUrl}/${appObj.resume}`;
-
+      // ✅ FIX: use req.file.path directly (NOT appObj.resume)
       return res.json({
         message: 'Applied with resume',
-        application: appObj
+        application: {
+          ...application.toObject(),
+          resume: `${baseUrl}/${req.file.path}`
+        }
       });
 
     } catch (err) {
@@ -148,13 +148,12 @@ router.get('/applied', auth, async (req, res) => {
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-    const updated = applications.map(app => {
-      const obj = app.toObject();
-      obj.resume = obj.resume
-        ? `${baseUrl}/${obj.resume}`
-        : null;
-      return obj;
-    });
+    const updated = applications.map(app => ({
+      ...app.toObject(),
+      resume: app.resume
+        ? `${baseUrl}/${app.resume}`
+        : null
+    }));
 
     return res.json(updated);
 
@@ -224,6 +223,5 @@ router.put('/status/:appId', auth, role('recruiter'), async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-
 
 module.exports = router;
