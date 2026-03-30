@@ -80,6 +80,15 @@ router.post(
   upload.single('resume'),
   async (req, res) => {
     try {
+
+      console.log("FILE:", req.file); // 🔥 DEBUG (DO NOT REMOVE)
+
+      if (!req.file) {
+        return res.status(400).json({
+          message: 'Resume file is required (PDF only)'
+        });
+      }
+
       const job = await Job.findById(req.params.jobId);
 
       if (!job) {
@@ -99,18 +108,16 @@ router.post(
       const application = new Application({
         user: req.user.id,
         job: req.params.jobId,
-        resume: req.file ? req.file.path : null
+        resume: req.file.path
       });
 
       await application.save();
 
-      // 🔥 FIX: Convert resume path → full URL
+      // Convert to full URL
       const baseUrl = `${req.protocol}://${req.get('host')}`;
 
       const appObj = application.toObject();
-      appObj.resume = appObj.resume
-        ? `${baseUrl}/${appObj.resume}`
-        : null;
+      appObj.resume = `${baseUrl}/${appObj.resume}`;
 
       return res.json({
         message: 'Applied with resume',
@@ -139,7 +146,6 @@ router.get('/applied', auth, async (req, res) => {
         }
       });
 
-    // 🔥 FIX: Add full resume URL
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     const updated = applications.map(app => {
