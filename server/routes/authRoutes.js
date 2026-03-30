@@ -29,6 +29,8 @@ const jwt = require('jsonwebtoken');
 
 // Login
 console.log("SECRET:", process.env.JWT_SECRET);
+console.log("LOGIN HIT");
+console.log("LOGIN SECRET:", process.env.JWT_SECRET);
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
