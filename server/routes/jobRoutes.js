@@ -32,7 +32,7 @@ router.post('/create', auth, role('recruiter'), async (req, res) => {
     return res.json({ message: 'Job created successfully', job });
 
   } catch (err) {
-    console.error(err);
+    console.error("CREATE JOB ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
     return res.json(jobs);
 
   } catch (err) {
-    console.error(err);
+    console.error("GET JOBS ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -72,9 +72,7 @@ router.get('/', async (req, res) => {
 // =========================
 // APPLY TO JOB (Jobseeker only)
 // =========================
-const upload = require('../middleware/upload');
-
-router.post('/apply/:jobId', auth, role('jobseeker'), upload.single('resume'), async (req, res) => {
+router.post('/apply/:jobId', auth, role('jobseeker'), async (req, res) => {
   try {
     const job = await Job.findById(req.params.jobId);
 
@@ -82,10 +80,19 @@ router.post('/apply/:jobId', auth, role('jobseeker'), upload.single('resume'), a
       return res.status(404).json({ message: 'Job not found' });
     }
 
+    // Prevent duplicate application
+    const existing = await Application.findOne({
+      user: req.user.id,
+      job: req.params.jobId
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Already applied' });
+    }
+
     const application = new Application({
       user: req.user.id,
-      job: req.params.jobId,
-      resume: req.file ? req.file.path : null
+      job: req.params.jobId
     });
 
     await application.save();
@@ -93,11 +100,7 @@ router.post('/apply/:jobId', auth, role('jobseeker'), upload.single('resume'), a
     return res.json({ message: 'Applied successfully', application });
 
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(400).json({ message: 'Already applied' });
-    }
-
-    console.error(err);
+    console.error("APPLY ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -120,14 +123,14 @@ router.get('/applied', auth, async (req, res) => {
     return res.json(applications);
 
   } catch (err) {
-    console.error(err);
+    console.error("GET APPLIED ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
 
 
 // =========================
-// GET APPLICANTS (Recruiter only - OWN JOBS)
+// GET APPLICANTS (Recruiter)
 // =========================
 router.get('/applicants/:jobId', auth, role('recruiter'), async (req, res) => {
   try {
@@ -137,7 +140,6 @@ router.get('/applicants/:jobId', auth, role('recruiter'), async (req, res) => {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    // 🔒 Ensure recruiter owns this job
     if (job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
@@ -148,14 +150,14 @@ router.get('/applicants/:jobId', auth, role('recruiter'), async (req, res) => {
     return res.json(applications);
 
   } catch (err) {
-    console.error(err);
+    console.error("GET APPLICANTS ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
 
 
 // =========================
-// UPDATE APPLICATION STATUS (Recruiter)
+// UPDATE APPLICATION STATUS
 // =========================
 router.put('/status/:appId', auth, role('recruiter'), async (req, res) => {
   try {
@@ -172,7 +174,6 @@ router.put('/status/:appId', auth, role('recruiter'), async (req, res) => {
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    // 🔒 Ensure recruiter owns the job
     if (application.job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
@@ -183,7 +184,7 @@ router.put('/status/:appId', auth, role('recruiter'), async (req, res) => {
     return res.json({ message: 'Status updated', application });
 
   } catch (err) {
-    console.error(err);
+    console.error("STATUS UPDATE ERROR:", err);
     return res.status(500).json({ error: err.message });
   }
 });
