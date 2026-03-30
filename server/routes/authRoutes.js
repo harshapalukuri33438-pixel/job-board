@@ -28,6 +28,7 @@ router.post('/register', async (req, res) => {
 const jwt = require('jsonwebtoken');
 
 // Login
+console.log("SECRET:", process.env.JWT_SECRET);
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
